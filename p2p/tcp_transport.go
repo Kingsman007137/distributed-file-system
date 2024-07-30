@@ -21,9 +21,15 @@ func NewTCPPeer(conn net.Conn, outbound bool) *TCPPeer {
 	}
 }
 
+type TCPTransportOpts struct {
+	ListenAddr string
+	HandshakeFunc HandshakeFunc
+	Decoder    Decoder
+}
+
 type TCPTransport struct {
 	// 属性先定义成不可导出的，以后有需要改
-	listenAddress string
+	TCPTransportOpts
 	listener      net.Listener
 
 	mutex  sync.Mutex
@@ -31,16 +37,16 @@ type TCPTransport struct {
 }
 
 // NewTCPTransport creates a new TCP transport
-func NewTCPTransport(listenAddress string) *TCPTransport {
+func NewTCPTransport(opts TCPTransportOpts) *TCPTransport {
 	return &TCPTransport{
-		listenAddress: listenAddress,
+		TCPTransportOpts: opts,
 	}
 }
 
 // "If func is more important, then put it more above"
 func (t *TCPTransport) ListenAndAccept() error {
 	var err error
-	t.listener, err = net.Listen("tcp", t.listenAddress)
+	t.listener, err = net.Listen("tcp", t.ListenAddr)
 	if err != nil {
 		return err
 	}
@@ -56,13 +62,31 @@ func (t *TCPTransport) startAcceptLoop() {
 		if err != nil {
 			fmt.Println("Error accepting connection: ", err)
 		}
+
+		fmt.Println("new incoming connection: ", conn)
 		go t.handleConnection(conn)
 	}
 }
 
 // A method - a function with a special receiver argument.
 func (t *TCPTransport) handleConnection(conn net.Conn) {
-	// here is inbound connection, because we dial it
+	// here is outbound connection, because we dial it
 	peer := NewTCPPeer(conn, true)
-	fmt.Println("Handling connection from: ", peer)
+
+	if err := t.HandshakeFunc(peer); err != nil {
+		conn.Close()
+		fmt.Println("Error shaking hands with peer: ", err)
+		return
+	}
+
+	// Read Loop
+	msg := &Message{}
+	for {
+		if err := t.Decoder.Decode(conn, msg); err != nil {
+			fmt.Println("Error decoding message: ", err)
+			break
+		}
+
+		fmt.Println("Received message: ", string(msg.Playload))
+	}
 }

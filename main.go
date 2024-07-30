@@ -1,15 +1,20 @@
 package main
 
 import (
-	"fmt"
 	"log"
 
 	"github.com/Kingsman007137/distributed-file-system/p2p"
 )
 
 func main() {
-	tr := p2p.NewTCPTransport("localhost:3000")
-	fmt.Println(tr)
+	tcpOpts := p2p.TCPTransportOpts{
+		ListenAddr:    "localhost:3000",
+		HandshakeFunc: p2p.NOPHandshakeFunc,
+		Decoder:       p2p.DefaultDecoder{},
+	}
+
+	tr := p2p.NewTCPTransport(tcpOpts)
+
 	if err := tr.ListenAndAccept(); err != nil {
 		log.Fatal(err)
 	}

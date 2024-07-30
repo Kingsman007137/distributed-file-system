@@ -11,12 +11,14 @@ import (
 
 func TestTCPTransport(t *testing.T) {
 	// 创建一个 TCPTransport 实例
-	listenAddress := "localhost:8080"
-	transport := NewTCPTransport(listenAddress)
-	// 判断是否创建成功
-	assert.Equal(t, transport.listenAddress, listenAddress)
+	opts := TCPTransportOpts{
+		ListenAddr:    ":3000",
+		HandshakeFunc: NOPHandshakeFunc,
+		Decoder:       GOBDecoder{},
+	}
+	tr := NewTCPTransport(opts)
+	assert.Equal(t, tr.ListenAddr, ":3000")
 
-	// 测试 ListenAndAccept 方法
-	assert.Nil(t, transport.ListenAndAccept())
+	assert.Nil(t, tr.ListenAndAccept())
 	// fmt.Println(transport.ListenAndAccept())
 }

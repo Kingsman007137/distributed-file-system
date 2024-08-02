@@ -29,6 +29,9 @@ type TCPTransportOpts struct {
 	ListenAddr string
 	HandshakeFunc HandshakeFunc
 	Decoder    Decoder
+	// OnPeer is a callback function that is called when a new peer is connected
+	// if the function returns an error, the connection is closed.
+	OnPeer   func(Peer) error
 }
 
 type TCPTransport struct {
@@ -80,20 +83,33 @@ func (t *TCPTransport) startAcceptLoop() {
 
 // A method - a function with a special receiver argument.
 func (t *TCPTransport) handleConnection(conn net.Conn) {
+	var err error
+
+	defer func ()  {
+		fmt.Println("Dropping peer connection: ", err)
+		conn.Close()
+	}()
+
 	// here is outbound connection, because we dial it
 	peer := NewTCPPeer(conn, true)
 
-	if err := t.HandshakeFunc(peer); err != nil {
-		conn.Close()
-		fmt.Println("Error shaking hands with peer: ", err)
+	if err = t.HandshakeFunc(peer); err != nil {
+		fmt.Println("Error shaking hands with peer!")
 		return
+	}
+
+	if t.OnPeer != nil {
+		if err = t.OnPeer(peer); err != nil {
+			fmt.Println("Error calling OnPeer!")
+			return
+		}
 	}
 
 	// Read Loop
 	rpc := RPC{}
 	for {
-		if err := t.Decoder.Decode(conn, &rpc); err != nil {
-			fmt.Println("Error decoding message: ", err)
+		if err = t.Decoder.Decode(conn, &rpc); err != nil {
+			fmt.Println("Error decoding message!")
 			break
 		}
 

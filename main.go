@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/Kingsman007137/distributed-file-system/p2p"
@@ -14,6 +15,13 @@ func main() {
 	}
 
 	tr := p2p.NewTCPTransport(tcpOpts)
+
+	go func() {
+		for {
+			msg := <-tr.Consume()
+			fmt.Println("Received message: ", msg)
+		}
+	}()
 
 	if err := tr.ListenAndAccept(); err != nil {
 		log.Fatal(err)

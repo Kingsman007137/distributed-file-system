@@ -21,6 +21,11 @@ func NewTCPPeer(conn net.Conn, outbound bool) *TCPPeer {
 	}
 }
 
+// Close implements the Peer interface, closes the connection to the remote node.
+func (p *TCPPeer) Close() error {
+	return p.conn.Close()
+}
+
 type TCPTransportOpts struct {
 	ListenAddr string
 	HandshakeFunc HandshakeFunc
@@ -30,17 +35,23 @@ type TCPTransportOpts struct {
 type TCPTransport struct {
 	// 属性先定义成不可导出的，以后有需要改
 	TCPTransportOpts
-	listener      net.Listener
-
-	mutex  sync.Mutex
-	peers  map[net.Addr]Peer
+	listener net.Listener
+	// rpcch is a channel that is used to send and receive RPC messages
+	rpcch    chan RPC
 }
 
 // NewTCPTransport creates a new TCP transport
 func NewTCPTransport(opts TCPTransportOpts) *TCPTransport {
 	return &TCPTransport{
 		TCPTransportOpts: opts,
+		rpcch: 			  make(chan RPC),
 	}
+}
+
+// Consume implements the Transport interface, which returns a read-only channel
+// for reading the imcoming messages received from another peer in the network.
+func (t *TCPTransport) Consume () <-chan RPC {
+	return t.rpcch
 }
 
 // "If func is more important, then put it more above"
@@ -80,13 +91,14 @@ func (t *TCPTransport) handleConnection(conn net.Conn) {
 	}
 
 	// Read Loop
-	msg := &Message{}
+	rpc := RPC{}
 	for {
-		if err := t.Decoder.Decode(conn, msg); err != nil {
+		if err := t.Decoder.Decode(conn, &rpc); err != nil {
 			fmt.Println("Error decoding message: ", err)
 			break
 		}
 
-		fmt.Println("Received message: ", string(msg.Playload))
+		rpc.From = conn.RemoteAddr()
+		t.rpcch <- rpc
 	}
 }
